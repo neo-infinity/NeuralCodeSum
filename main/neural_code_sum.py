@@ -6,7 +6,7 @@ from c2nl.inputters.utils import process_examples
 from main import test
 from c2nl.utils.misc import get_project_root
 import javalang
-import os
+import ntpath
 
 def convert_to_token(sources, args):
     examples = []
@@ -93,11 +93,16 @@ def append_java_doc(file_path, java_doc_temp, method_token_list):
 
             code_with_doc.append(line)
             current_line_no = current_line_no + 1
-
-    with open(str(get_project_root()) + '/output.java', 'w') as new_doc_file:
+    with open(str(get_project_root()) + '/flask_app/uploads/'+path_leaf(file_path), 'w') as new_doc_file:
         new_doc_file.truncate(0)
         for code in code_with_doc:
             new_doc_file.write(code)
+
+
+def path_leaf(path):
+    head, tail = ntpath.split(path)
+    return tail
+
 
 def main(input_args):
     # Set cuda
@@ -121,35 +126,17 @@ def main(input_args):
     append_java_doc(args.file_path, java_doc_temp, method_token_list)
 
 
-def starter(uploadedFile):
-    parser = argparse.ArgumentParser(
-        'Java Code Symmetrization',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    # Adding Java file path argument
-
-    defaultFilePath = os.path.dirname(os.path.realpath(__file__)) + '/uploads/' + uploadedFile
-    parser.add_argument("-p", "--file_path", help="Input file path", default=defaultFilePath, required=False)
-
-    # Adding Java file type argument
-    parser.add_argument("-f", "--file_type", help="File type", default='java', required=False,
-                        choices=['java', 'method'], )
-
-    # Adding Model file path argument
-    defaultModelFilePath = os.path.dirname(os.path.realpath(__file__)) + '/tmp/code2jdoc.mdl'
-    parser.add_argument("-m", "--model_file", help="Model File path", default=defaultModelFilePath, required=False)
-
-    # Adding Output file path argument
-    defaultOutputFilePath = os.path.dirname(os.path.realpath(__file__)) + '/code2jdoc.json'
-    parser.add_argument("-o", "--pred_file", help="Output File path", default=defaultOutputFilePath, required=False)
-
-    # Read arguments from command line
+def starter(uploaded_file):
+    parser = argparse.ArgumentParser()
     args = parser.parse_args()
-
+    args.file_type = 'java'
+    args.file_path = str(get_project_root()) + '/flask_app/uploads/' + uploaded_file
+    args.model_file = str(get_project_root()) + '/tmp/code2jdoc.mdl'
+    args.pred_file = str(get_project_root()) + '/sum.code'
     # main(args)
 
     # Set cuda
-    args.cuda = torch.cuda.is_available()
+    args.cuda = False
     args.parallel = torch.cuda.device_count() > 1
 
     set_args(args)
@@ -161,7 +148,7 @@ def starter(uploadedFile):
     if args.file_type == 'method':
         method_token_list.append([[0, 0], java_tokenizer.tokenize_java_method(None, args.file_path)])
 
-    dev_exs = convert_to_token(method_token_list,args)
+    dev_exs = convert_to_token(method_token_list, args)
     method_hypotheses = test.main(args, dev_exs)
 
     java_doc_temp = generate_java_doc_template(args.file_path, method_hypotheses, method_token_list)
